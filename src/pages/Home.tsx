@@ -4,6 +4,8 @@ import { Nav } from "../components/Nav";
 import { Preloader } from "../components/Preloader";
 import { Hero } from "../components/Hero";
 import { ScrollManifesto } from "../components/ScrollManifesto";
+import { FieldGuide } from "../components/FieldGuide";
+import { FooterCTA } from "../components/FooterCTA";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -18,6 +20,8 @@ export default function Home() {
       <Nav />
       <Hero />
       <ScrollManifesto />
+      <FieldGuide />
+      <FooterCTA />
     </>
   );
 }
