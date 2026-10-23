@@ -3,6 +3,7 @@ import { AnimatePresence } from "motion/react";
 import { Nav } from "../components/Nav";
 import { Preloader } from "../components/Preloader";
 import { Hero } from "../components/Hero";
+import { ScrollManifesto } from "../components/ScrollManifesto";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -16,6 +17,7 @@ export default function Home() {
       <div className="noise-overlay" />
       <Nav />
       <Hero />
+      <ScrollManifesto />
     </>
   );
 }
