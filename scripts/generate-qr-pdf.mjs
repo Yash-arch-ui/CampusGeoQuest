@@ -13,8 +13,8 @@ const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN = 40;
 const COLS = 2;
-const ROWS = 3;
-const PER_PAGE = 5;
+const ROWS = 2;
+const PER_PAGE = 4;
 
 const doc = await PDFDocument.create();
 const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -30,7 +30,7 @@ const PAGE_COUNT = Math.ceil(STATIONS.length / PER_PAGE);
 const gridTop = PAGE_H - 118;
 const cellW = (PAGE_W - MARGIN * 2) / COLS;
 const cellH = (gridTop - MARGIN) / ROWS;
-const qrSize = Math.min(cellW - 42, cellH - 74);
+const qrSize = Math.min(cellW - 36, cellH - 90);
 
 const pageLabel = (page, total) =>
   `${page} / ${total}`;
@@ -94,8 +94,10 @@ for (let pageIndex = 0; pageIndex < PAGE_COUNT; pageIndex++) {
       borderWidth: 0.8,
     });
 
+    const contentH = qrSize + 34;
+    const qrTop = cellTop - (cellH - contentH) / 2;
     const qrX = cellX + (cellW - qrSize) / 2;
-    const qrY = cellTop - 18 - qrSize;
+    const qrY = qrTop - qrSize;
     page.drawImage(images.get(station.n), {
       x: qrX,
       y: qrY,

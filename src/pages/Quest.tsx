@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, MapPin, QrCode, RotateCcw, Upload, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, MapPin, QrCode, RotateCcw, X } from "lucide-react";
 import QrScanner from "qr-scanner";
 import { START_HINT, STATIONS } from "../data/quest";
 
@@ -30,8 +30,10 @@ export default function Quest() {
   const [selected, setSelected] = useState<number | null>(null);
   const [wrong, setWrong] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<QrScanner | null>(null);
 
   const station = STATIONS[Math.min(currentIndex, STATIONS.length - 1)];
   const scanHint = currentIndex === 0 ? START_HINT : STATIONS[currentIndex - 1].nextHint;
@@ -45,32 +47,63 @@ export default function Quest() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [stage, currentIndex]);
 
-  const handleFile = async (file: File | null | undefined) => {
-    if (!file || currentIndex >= STATIONS.length) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const result = await QrScanner.scanImage(file, {
-        returnDetailedScanResult: true,
-        alsoTryWithoutScanRegion: true,
-      });
-      const token = result.data.trim();
-      if (token === station.qrToken) {
-        setStage("question");
-      } else {
-        const known = STATIONS.find((s) => s.qrToken === token);
-        setError(
-          known
-            ? `That's Station ${known.id}. Find Station ${station.id} first.`
-            : "That QR code isn't part of the Campus GeoQuest trail.",
-        );
-      }
-    } catch {
-      setError("No readable QR code found. Try a clearer, closer photo.");
-    } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
+  useEffect(() => {
+    if (stage !== "scan") setCameraOn(false);
+  }, [stage]);
+
+  const stopCamera = () => setCameraOn(false);
+
+  const acceptToken = (raw: string) => {
+    const token = raw.trim();
+    if (token === station.qrToken) {
+      stopCamera();
+      setError(null);
+      setCameraError(null);
+      setStage("question");
+      return;
     }
+    const known = STATIONS.find((s) => s.qrToken === token);
+    setError(
+      known
+        ? `That's Station ${known.id}. Find Station ${station.id} first.`
+        : "That QR code isn't part of the Campus GeoQuest trail.",
+    );
+  };
+
+  const acceptTokenRef = useRef(acceptToken);
+  acceptTokenRef.current = acceptToken;
+
+  useEffect(() => {
+    if (!cameraOn || !videoRef.current) return;
+    const scanner = new QrScanner(
+      videoRef.current,
+      (result) => acceptTokenRef.current(result.data),
+      {
+        preferredCamera: "environment",
+        maxScansPerSecond: 10,
+        highlightScanRegion: true,
+        highlightCodeOutline: true,
+        returnDetailedScanResult: true,
+      },
+    );
+    scannerRef.current = scanner;
+    scanner.start().catch(() => {
+      scanner.destroy();
+      if (scannerRef.current === scanner) scannerRef.current = null;
+      setCameraOn(false);
+      setCameraError("Couldn't open the camera. Check permissions or upload a photo instead.");
+    });
+
+    return () => {
+      scanner.destroy();
+      if (scannerRef.current === scanner) scannerRef.current = null;
+    };
+  }, [cameraOn]);
+
+  const startCamera = () => {
+    setError(null);
+    setCameraError(null);
+    setCameraOn(true);
   };
 
   const choose = (index: number) => {
@@ -167,7 +200,7 @@ export default function Quest() {
                     Scan the code.
                   </h1>
                   <p className="mt-3 text-center text-sm leading-relaxed text-text-secondary">
-                    Find the QR at this station and upload a photo of it.
+                    Point your camera at the QR code to unlock the question.
                   </p>
 
                   <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4">
@@ -177,36 +210,49 @@ export default function Quest() {
                     <p className="mt-2 text-sm leading-relaxed text-white/80">{scanHint}</p>
                   </div>
 
-                  <div
-                    className="mt-6"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      void handleFile(e.dataTransfer.files?.[0]);
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => inputRef.current?.click()}
-                      disabled={busy}
-                      className="ease-precision flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/15 bg-white/[0.01] px-6 py-10 transition-all hover:border-white/30 hover:bg-white/[0.03] disabled:cursor-wait disabled:opacity-60"
-                    >
-                      <Upload size={18} className="text-white/70" />
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/80">
-                        {busy ? "Reading QR…" : "Upload QR photo"}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-text-secondary">
-                        or drag an image here
-                      </span>
-                    </button>
-                    <input
-                      ref={inputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => void handleFile(e.target.files?.[0])}
-                    />
+                  <div className="mt-6 space-y-3">
+                    {!cameraOn && (
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="ease-precision flex w-full items-center justify-center gap-3 rounded-full bg-white px-8 py-4 text-[11px] font-bold uppercase tracking-[0.2em] text-black transition-all hover:shadow-[0_0_60px_rgba(255,255,255,0.15)]"
+                      >
+                        <Camera size={15} />
+                        Scan with camera
+                      </button>
+                    )}
+
+                    {cameraOn && (
+                      <div className="overflow-hidden rounded-xl border border-white/15 bg-black">
+                        <video
+                          ref={videoRef}
+                          muted
+                          playsInline
+                          className="aspect-square w-full object-cover"
+                        />
+                        <div className="flex items-center justify-between gap-3 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-text-secondary">
+                            Point at the QR code
+                          </p>
+                          <button
+                            type="button"
+                            onClick={stopCamera}
+                            className="text-[10px] uppercase tracking-[0.2em] text-white/70 transition-colors hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                   </div>
+
+                  {cameraError && (
+                    <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[color:var(--danger)]">
+                      <X size={13} className="mt-0.5 shrink-0" />
+                      {cameraError}
+                    </p>
+                  )}
 
                   {error && (
                     <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-[color:var(--danger)]">
